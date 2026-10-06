@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoramento do Rio - Cálculo Interativo</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 950px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
+        p.subtitle { text-align: center; color: #666; margin-top: 0; font-size: 1.1em; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+        .card { padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #e0e0e0; background: #fafafa; }
+        .card h3 { margin-top: 0; font-size: 1em; color: #555; }
+        .card .value { font-size: 1.4em; font-weight: bold; margin: 8px 0; }
+        .funcao-card { border-left: 5px solid #3498db; }
+        .derivada-card { border-left: 5px solid #e74c3c; }
+        .integral-card { border-left: 5px solid #9b59b6; }
+        .decisao-card { border-left: 5px solid #2ecc71; background-color: #eafaf1; }
+        .slider-container { margin: 25px 0 10px 0; text-align: center; background: #edf2f7; padding: 15px; border-radius: 8px; }
+        input[type=range] { width: 85%; cursor: pointer; }
+        canvas { margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Cálculo em Ação: O nível do rio oscila</h1>
+    <p class="subtitle">Modelo: <strong>f(t) = 500 · sen(0,5t)</strong></p>
+
+    <div class="slider-container">
+        <label for="timeSlider"><strong>Tempo selecionado (t): <span id="timeDisplay" style="color: #2b6cb0; font-size: 1.2em;">0.0</span> h</strong></label><br><br>
+        <input type="range" id="timeSlider" min="0" max="20" step="0.1" value="0">
+    </div>
+
+    <div class="dashboard">
+        <div class="card funcao-card">
+            <h3>FUNÇÃO f(t)</h3>
+            <p style="font-size: 0.85em; color: #777;">Nível Atual do Rio</p>
+            <div class="value" id="valFuncao" style="color: #3498db;">0.00 mm</div>
+        </div>
+        <div class="card derivada-card">
+            <h3>DERIVADA f'(t)</h3>
+            <p style="font-size: 0.85em; color: #777;">Inclinação da Tangente</p>
+            <div class="value" id="valDerivada" style="color: #e74c3c;">250.00 mm/h</div>
+        </div>
+        <div class="card integral-card">
+            <h3>INTEGRAL ∫f(t)dt</h3>
+            <p style="font-size: 0.85em; color: #777;">Área sob a Curva</p>
+            <div class="value" id="valIntegral" style="color: #9b59b6;">0.00</div>
+        </div>
+        <div class="card decisao-card">
+            <h3>DECISÃO DA CIDADE</h3>
+            <p style="font-size: 0.85em; color: #777;">Ação Prática[cite: 17]</p>
+            <div class="value" id="valDecisao" style="font-size: 1.05em; color: #27ae60;">Monitoramento Padrão</div>
+        </div>
+    </div>
+
+    <canvas id="rioChart"></canvas>
+</div>
+
+<script>
+    // Fórmulas Matemáticas
+    const f = (t) => 500 * Math.sin(0.5 * t);
+    const df = (t) => 250 * Math.cos(0.5 * t);
+    const intF = (t) => -1000 * Math.cos(0.5 * t) + 1000;
+
+    // Gerar pontos base da curva f(t)
+    const tValues = [];
+    const fValues = [];
+    for (let t = 0; t <= 20; t += 0.1) {
+        tValues.push(t.toFixed(1));
+        fValues.push(f(t));
+    }
+
+    // Configuração do Chart.js
+    const ctx = document.getElementById('rioChart').getContext('2d');
+    const rioChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: tValues,
+            datasets: [
+                {
+                    label: 'Área da Integral (Acúmulo)',
+                    data: [],
+                    borderColor: 'transparent',
+                    backgroundColor: 'rgba(155, 89, 182, 0.25)',
+                    fill: 'origin',
+                    pointRadius: 0
+                },
+                {
+                    label: 'Nível do Rio f(t)',
+                    data: fValues,
+                    borderColor: '#3498db',
+                    borderWidth: 3,
+                    fill: false,
+                    pointRadius: 0,
+                    tension: 0.3
+                },
+                {
+                    label: 'Reta Tangente f\'(t)',
+                    data: [],
+                    borderColor: '#e74c3c',
+                    borderWidth: 2,
+                    borderDash: [6, 4],
+                    fill: false,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Instante Atual (t)',
+                    data: [],
+                    borderColor: '#e74c3c',
+                    backgroundColor: '#e74c3c',
+                    pointRadius: 7,
+                    pointHoverRadius: 9,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            interaction: { intersect: false, mode: 'index' },
+            scales: {
+                y: { min: -650, max: 650, title: { display: true, text: 'Variação do Nível (mm)' } },
+                x: { title: { display: true, text: 'Tempo (t em horas)' } }
+            }
+        }
+    });
+
+    // Elementos DOM
+    const timeSlider = document.getElementById('timeSlider');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const valFuncao = document.getElementById('valFuncao');
+    const valDerivada = document.getElementById('valDerivada');
+    const valIntegral = document.getElementById('valIntegral');
+    const valDecisao = document.getElementById('valDecisao');
+
+    function updateChart(t) {
+        const currentY = f(t);
+        const currentDf = df(t);
+        const currentInt = intF(t);
+
+        // Update Textos
+        timeDisplay.innerText = t.toFixed(1);
+        valFuncao.innerText = currentY.toFixed(2) + " mm";
+        valDerivada.innerText = currentDf.toFixed(2) + " mm/h";
+        valIntegral.innerText = currentInt.toFixed(2);
+
+        // Decisão
+        if (Math.abs(currentDf) < 15) {
+            valDecisao.innerText = "Pico / Vale Alcançado (Inflexão)";
+            valDecisao.style.color = "#c0392b";
+        } else if (currentDf > 0 && currentY > 250) {
+            valDecisao.innerText = "Alerta de Transbordamento!";
+            valDecisao.style.color = "#e67e22";
+        } else if (currentDf < 0) {
+            valDecisao.innerText = "Nível do Rio Descendo";
+            valDecisao.style.color = "#2ecc71";
+        } else {
+            valDecisao.innerText = "Nível do Rio Subindo";
+            valDecisao.style.color = "#f1c40f";
+        }
+
+        // 1. Atualizar o Ponto Atual
+        const puntoData = new Array(tValues.length).fill(null);
+        const indexCurrent = Math.round(t * 10);
+        puntoData[indexCurrent] = currentY;
+        rioChart.data.datasets[3].data = puntoData;
+
+        // 2. Atualizar Área da Integral (de 0 até t)
+        const areaData = new Array(tValues.length).fill(null);
+        for (let i = 0; i <= indexCurrent; i++) {
+            areaData[i] = fValues[i];
+        }
+        rioChart.data.datasets[0].data = areaData;
+
+        // 3. Atualizar Reta Tangente (Visualização da Derivada)
+        const tangentData = new Array(tValues.length).fill(null);
+        const range = 15; // Extensão da linha da tangente
+        const startIndex = Math.max(0, indexCurrent - range);
+        const endIndex = Math.min(tValues.length - 1, indexCurrent + range);
+
+        for (let i = startIndex; i <= endIndex; i++) {
+            const tVal = parseFloat(tValues[i]);
+            // Equação da reta tangente: y - y0 = m(x - x0)  =>  y = m*(t - t0) + y0
+            tangentData[i] = currentDf * (tVal - t) + currentY;
+        }
+        rioChart.data.datasets[2].data = tangentData;
+
+        rioChart.update();
+    }
+
+    // Listener do Slider
+    timeSlider.addEventListener('input', (e) => {
+        updateChart(parseFloat(e.target.value));
+    });
+
+    // Inicialização
+    updateChart(0);
+</script>
+
+</body>
+</html>
